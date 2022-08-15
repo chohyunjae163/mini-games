@@ -8,39 +8,43 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <time.h>
 
-typedef enum { LOGO = 0, TITLE, GAMEPLAY, ENDING } GameScreen;
-typedef enum { DEAD = 0, ALIVE, INVINCIBLE } State;
-typedef struct
+enum GameScreen{ LOGO = 0, TITLE, GAMEPLAY, ENDING };
+enum State{ DEAD = 0, ALIVE, INVINCIBLE };
+struct Missile
 {
     Texture2D texture;
     Vector2 position;
     float rotation;
     float speed;
-} Missile;
+};
 
-typedef struct 
+struct SpaceCraft
 {
-    Texture2D   texture[2];
-    State       state;
-    Vector2     position;
-    Missile     missile;
-    float       rotation;
-    float       fuel;
-    float       power;
-    bool        is_fire;
-} SpaceCraft;
+    Vector2             position;
+    Texture2D           texture[2];
+    enum State          state;
+    struct Missile      missile;
+    float               rotation;
+    float               fuel;
+    float               power;
+    bool                is_fire;
+};
 
 
-void HandleInputs(SpaceCraft* const);
+void HandleInputs(struct SpaceCraft* const);
 void DrawSpacecraft(Texture2D* const,Vector2,float);
 void DrawMissile(Texture2D* const, Vector2 , float);
 float IncreaseRotation(float);
 float DecreaseRotation(float);
-void fire(Missile* const,Vector2, float);
+void fire(struct Missile* const,Vector2, float);
 
 int main(void)
 {
+    time_t t;
+    srand((unsigned int) time (&t));
     // Initialization
     //--------------------------------------------------------------------------------------
     //setup window
@@ -50,14 +54,25 @@ int main(void)
     
     //setup the game environment
     const float GAME_TIME   =       60.0f;
+    enum GameScreen currentScreen = LOGO;
     float TimeRemaining = GAME_TIME;
     int score = 0;
-    char RemainTimeBuffer[20];
-    char ScoreBuffer[10];
-    GameScreen currentScreen = LOGO;
+    char RemainTimeBuffer[15];
+    char ScoreBuffer[18];
     
+    //Image spacecraft_image = LoadImage("resources/spacecraft_a.png");
+    //Image spacecraft_fire = LoadImage("resources/spacecraft_fire.png");
     //setup player spacecraft
-    SpaceCraft PlayerShip;
+    // struct SpaceCraft PlayerShip = {
+         // .position.x = 250,
+         // .position.y = 250,
+         // .state = ALIVE,
+         // .rotation = 0.0f,
+         // .fuel = 100.0f,
+         // .texture[0] = LoadTextureFromImage(spacecraft_image),
+         // .texture[1] = LoadTextureFromImage(spacecraft_fire),
+    // };
+    struct SpaceCraft PlayerShip;
     PlayerShip.position.x = 250;
     PlayerShip.position.y = 250;
     PlayerShip.state = ALIVE;
@@ -71,23 +86,26 @@ int main(void)
     UnloadImage(spacecraft_fire);
     
     //setup ufo spacecraft
+    float ufo_rot = ((float)rand()/RAND_MAX * (float)120.0f + 220.0f);
     Image ufo_image = LoadImage("resources/spacecraft_b.png");
-    SpaceCraft ufo_a = { 
+    struct SpaceCraft ufo_a = { 
     .position.x = SCREEN_WIDTH - 250, 
     .position.y = 250, 
     .state = ALIVE, 
     .rotation = 0.0f,
     .fuel = 100.0f,
-    .texture[0] = LoadTextureFromImage(ufo_image)
+    .texture[0] = LoadTextureFromImage(ufo_image),
+    .power = 105.0f
     };
     
-    SpaceCraft ufo_b = { 
+    struct SpaceCraft ufo_b = { 
     .position.x = SCREEN_WIDTH - 250, 
     .position.y = 500, 
     .state = ALIVE, 
     .rotation = 0.0f,
     .fuel = 100.0f,
-    .texture[0] = LoadTextureFromImage(ufo_image)
+    .texture[0] = LoadTextureFromImage(ufo_image),
+    .power = 105.0f
     };
     UnloadImage(ufo_image);
     
@@ -146,6 +164,30 @@ int main(void)
             PlayerShip.position.y = SCREEN_HEIGHT;
         }
         
+        //do some random direction
+        if(ufo_a.position.x > 1550.0f)
+        {
+            ufo_rot = ((float)rand()/RAND_MAX * (float)120.0f + 220.0f);
+        }
+        else if(ufo_a.position.x <= 50.0f)
+        {
+            ufo_rot = ((float)rand()/RAND_MAX * (float)120.0f + 30.0f);
+        }
+        if(ufo_a.position.y <= 50.0f)
+        {
+            ufo_rot = ((float)rand()/RAND_MAX * (float)120.0f + 120.0f);
+        }
+        else if(ufo_a.position.y >= 1150.0f)
+        {
+            ufo_rot = ((float)rand()/RAND_MAX * (float)45.0f - 60.0f);
+        }
+        
+        float ufo_radian = (-45.0f + ufo_rot) * (3.141592f / 180.0f);
+        ufo_a.position.x += (ufo_a.power  * (cos(ufo_radian) + sin(ufo_radian)) * GetFrameTime());
+        ufo_a.position.y += (ufo_a.power * (sin(ufo_radian) - cos(ufo_radian)) * GetFrameTime());
+        ufo_b.position.x += (ufo_b.power  * (cos(ufo_radian) + sin(ufo_radian)) * GetFrameTime());
+        ufo_b.position.y += (ufo_b.power * (sin(ufo_radian) - cos(ufo_radian)) * GetFrameTime());
+        
         //update player missile position
         if(PlayerShip.is_fire)
         {
@@ -160,21 +202,10 @@ int main(void)
                 PlayerShip.is_fire = false;
             }
         }
-        
-        //do some random direction
-        if(ufo_a.position.x < 100.0f || ufo_a.position.x >= 1500.0f)
-        {
-            //float randX = (float)rand()/RAND_MAX * float(2.0f) - 1.0f;
-        }
-        
-        // float randY = (float)rand()/RAND_MAX * float(2.0f) - 1.0f;
-        ufo_a.position;
-        ufo_b.position;
-
 
         TimeRemaining -= GetFrameTime();
         sprintf(RemainTimeBuffer,"Remaining : %d",(int)TimeRemaining);
-        sprintf(ScoreBuffer,"Score: %d", score);
+        sprintf(ScoreBuffer,"Score:%.3f", PlayerShip.position.x);
         
         bool isPlayerUsingPower = IsKeyDown(KEY_UP);
         // Draw
@@ -200,11 +231,11 @@ int main(void)
             //draw ufos!
             if(ufo_a.state == ALIVE)
             {
-                DrawSpacecraft(&ufo_a.texture[0],ufo_a.position, ufo_a.rotation);    
+               DrawSpacecraft(&ufo_a.texture[0],ufo_a.position,0.0f);    
             }
             if(ufo_b.state == ALIVE)
             {
-                DrawSpacecraft(&ufo_b.texture[0],ufo_b.position, ufo_b.rotation);
+               DrawSpacecraft(&ufo_b.texture[0],ufo_b.position, 0.0f);
             }
             
             
@@ -262,7 +293,7 @@ void DrawMissile(Texture2D* const texture,Vector2 position, float rotation)
         WHITE);
 }
 
-void HandleInputs( SpaceCraft * const spacecraft)
+void HandleInputs(struct SpaceCraft * const spacecraft)
 {
     if(IsKeyDown(KEY_RIGHT))
     {
@@ -297,7 +328,7 @@ void HandleInputs( SpaceCraft * const spacecraft)
 }
 
 
-void fire(Missile* const missile, Vector2 position, float rotation)
+void fire(struct Missile* const missile, Vector2 position, float rotation)
 {
     missile->position = position;
     missile->rotation = rotation;
