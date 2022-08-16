@@ -17,9 +17,14 @@ struct Missile
 {
     Texture2D texture;
     Vector2 position;
+    float collision_radius;
     float rotation;
     float speed;
 };
+
+char GAME_TITLE_MESSAGE[] = "CLICK TO START WAR!";
+char GAME_FAIL_MESSAGE[] = "died";
+char GAME_SUCCESS_MESSAGE[] = "survived";
 
 struct SpaceCraft
 {
@@ -27,6 +32,7 @@ struct SpaceCraft
     Texture2D           texture[2];
     enum State          state;
     struct Missile      missile;
+    float               collision_radius;
     float               rotation;
     float               fuel;
     float               power;
@@ -37,9 +43,6 @@ struct SpaceCraft
 void HandleInputs(struct SpaceCraft* const);
 void DrawSpacecraft(Texture2D* const,Vector2,float);
 void DrawMissile(Texture2D* const, Vector2 , float);
-float IncreaseRotation(float);
-float DecreaseRotation(float);
-void fire(struct Missile* const,Vector2, float);
 
 int main(void)
 {
@@ -47,6 +50,8 @@ int main(void)
     srand((unsigned int) time (&t));
     // Initialization
     //--------------------------------------------------------------------------------------
+    //debugging
+    char LoggingBuffer[50];
     //setup window
     const int SCREEN_WIDTH  =       1600;
     const int SCREEN_HEIGHT =       1200;
@@ -54,36 +59,31 @@ int main(void)
     
     //setup the game environment
     const float GAME_TIME   =       60.0f;
-    enum GameScreen currentScreen = LOGO;
+    const float UFO_FIRE_INTERVAL  = 0.25;
+    float last_ufo_fire = 0.0f;
+    bool is_ufo_fire = false;
+    bool is_survive = false;
+    float fire_angle = 0;
     float TimeRemaining = GAME_TIME;
     int score = 0;
+    enum GameScreen currentScreen = TITLE;
     char RemainTimeBuffer[15];
     char ScoreBuffer[18];
     
-    //Image spacecraft_image = LoadImage("resources/spacecraft_a.png");
-    //Image spacecraft_fire = LoadImage("resources/spacecraft_fire.png");
-    //setup player spacecraft
-    // struct SpaceCraft PlayerShip = {
-         // .position.x = 250,
-         // .position.y = 250,
-         // .state = ALIVE,
-         // .rotation = 0.0f,
-         // .fuel = 100.0f,
-         // .texture[0] = LoadTextureFromImage(spacecraft_image),
-         // .texture[1] = LoadTextureFromImage(spacecraft_fire),
-    // };
-    struct SpaceCraft PlayerShip;
-    PlayerShip.position.x = 250;
-    PlayerShip.position.y = 250;
-    PlayerShip.state = ALIVE;
-    PlayerShip.rotation  = 0.0f;
-    PlayerShip.fuel = 100.0f;
     Image spacecraft_image = LoadImage("resources/spacecraft_a.png");
-    PlayerShip.texture[0] = LoadTextureFromImage(spacecraft_image);
     Image spacecraft_fire = LoadImage("resources/spacecraft_fire.png");
-    PlayerShip.texture[1] = LoadTextureFromImage(spacecraft_fire);
-    UnloadImage(spacecraft_image);
-    UnloadImage(spacecraft_fire);
+    //setup player spacecraft
+    struct SpaceCraft player_ship = {
+         .position.x = 250,
+         .position.y = 250,
+         .state = ALIVE,
+         .rotation = 0.0f,
+         .fuel = 100.0f,
+         .power = 0.0f,
+         .collision_radius = 25.0f,
+         .texture[0] = LoadTextureFromImage(spacecraft_image),
+         .texture[1] = LoadTextureFromImage(spacecraft_fire),
+    };
     
     //setup ufo spacecraft
     float ufo_rot = ((float)rand()/RAND_MAX * (float)120.0f + 220.0f);
@@ -94,6 +94,7 @@ int main(void)
     .state = ALIVE, 
     .rotation = 0.0f,
     .fuel = 100.0f,
+    .collision_radius = 25.0f,
     .texture[0] = LoadTextureFromImage(ufo_image),
     .power = 105.0f
     };
@@ -105,15 +106,24 @@ int main(void)
     .rotation = 0.0f,
     .fuel = 100.0f,
     .texture[0] = LoadTextureFromImage(ufo_image),
-    .power = 105.0f
+    .power = 105.0f,
+    .collision_radius = 25.0f,
     };
     UnloadImage(ufo_image);
     
     
     //setup missile
     Image img_missile = LoadImage("resources/spacecraft_bullet.png");
-    PlayerShip.missile.texture = LoadTextureFromImage(img_missile);
-    PlayerShip.missile.speed = 250;
+    player_ship.missile.texture = LoadTextureFromImage(img_missile);
+    player_ship.missile.speed = 250;
+    player_ship.missile.collision_radius = 10.0f;
+    
+    ufo_a.missile.texture = LoadTextureFromImage(img_missile);
+    ufo_b.missile.texture = LoadTextureFromImage(img_missile);
+    ufo_a.missile.speed = 200;
+    ufo_a.missile.collision_radius = 10.0f;
+    ufo_b.missile.speed = 200;
+    ufo_b.missile.collision_radius = 10.0f;
     UnloadImage(img_missile);
     
     SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
@@ -124,155 +134,249 @@ int main(void)
     {
         // Update
         //----------------------------------------------------------------------------------
-        HandleInputs(&PlayerShip);
-        //if pressed ESC, end the game
-        if(IsKeyDown(KEY_ESCAPE))
-        {
-            break;
-        }    
+        HandleInputs(&player_ship);
+        bool isPlayerUsingPower = false;
         //scene update
         switch(currentScreen)
         {
-            case LOGO:
-            break;
             case TITLE:
+            if(IsMouseButtonReleased(0))
+            {
+                currentScreen = GAMEPLAY;
+            }
             break;
             case GAMEPLAY:
+            {
+                //update player_ship positions
+                float radian = (-45.0f + player_ship.rotation) * 3.141592f / 180.0f;
+                player_ship.position.x += (player_ship.power * (cos(radian) + sin(radian)) * GetFrameTime());
+                if(player_ship.position.x > SCREEN_WIDTH)
+                {
+                    player_ship.position.x  = 0.0f;
+                }
+                else if( player_ship.position.x < 0.0f)
+                {
+                    player_ship.position.x = SCREEN_WIDTH;
+                }
+                player_ship.position.y += (player_ship.power * (sin(radian) - cos (radian)) * GetFrameTime());
+                if(player_ship.position.y > SCREEN_HEIGHT)
+                {
+                    player_ship.position.y = 0.0f;
+                }
+                else if(player_ship.position.y < 0.0f)
+                {
+                    player_ship.position.y = SCREEN_HEIGHT;
+                }
+                
+                //do some random direction
+                if(ufo_a.position.x > 1550.0f)
+                {
+                    ufo_rot = ((float)rand()/RAND_MAX * (float)120.0f + 220.0f);
+                }
+                else if(ufo_a.position.x <= 50.0f)
+                {
+                    ufo_rot = ((float)rand()/RAND_MAX * (float)120.0f + 30.0f);
+                }
+                if(ufo_a.position.y <= 50.0f)
+                {
+                    ufo_rot = ((float)rand()/RAND_MAX * (float)120.0f + 120.0f);
+                }
+                else if(ufo_b.position.y >= 1150.0f)
+                {
+                    ufo_rot = ((float)rand()/RAND_MAX * (float)45.0f - 60.0f);
+                }
+                
+                float ufo_radian = (-45.0f + ufo_rot) * (3.141592f / 180.0f);
+                if(ufo_a.state == ALIVE)
+                {
+                    ufo_a.position.x += (ufo_a.power  * (cos(ufo_radian) + sin(ufo_radian)) * GetFrameTime());
+                    ufo_a.position.y += (ufo_a.power * (sin(ufo_radian) - cos(ufo_radian)) * GetFrameTime());                    
+                }
+                if(ufo_b.state == ALIVE)
+                {
+                    ufo_b.position.x += (ufo_b.power  * (cos(ufo_radian) + sin(ufo_radian)) * GetFrameTime());
+                    ufo_b.position.y += (ufo_b.power * (sin(ufo_radian) - cos(ufo_radian)) * GetFrameTime());                    
+                }
+
+                
+                //update player missile position
+                if(player_ship.is_fire)
+                {
+                    float missile_radian = (-45.0f + player_ship.missile.rotation) * 3.141592f / 180.0f;
+                    player_ship.missile.position.x += (player_ship.missile.speed * (cos(missile_radian) + sin(missile_radian)) * GetFrameTime());
+                    player_ship.missile.position.y += (player_ship.missile.speed * (sin(missile_radian) - cos (missile_radian)) * GetFrameTime());
+                    
+                    float x_delta = fabs(player_ship.missile.position.x  - player_ship.position.x);
+                    float y_delta = fabs(player_ship.missile.position.y - player_ship.position.y);
+                    
+                    if(ufo_a.state == ALIVE && CheckCollisionCircles(ufo_a.position,ufo_a.collision_radius,player_ship.missile.position,player_ship.missile.collision_radius))
+                    {
+                        ufo_a.state = DEAD;
+                    }
+                    if(ufo_b.state == ALIVE && CheckCollisionCircles(ufo_b.position,ufo_b.collision_radius,player_ship.missile.position,player_ship.missile.collision_radius))
+                    {
+                        ufo_b.state = DEAD;
+                    }            
+                    if(ufo_a.state == DEAD && ufo_b.state == DEAD)
+                    {
+                        currentScreen = ENDING;
+                        is_survive = true;
+                    }
+                    if( x_delta + y_delta  > 300 )
+                    {
+                        player_ship.is_fire = false;
+                    }
+                }
+                
+                
+                //update ufos missile
+                double current_time = GetTime();
+            
+                if(current_time >= last_ufo_fire + UFO_FIRE_INTERVAL)
+                {
+                    ufo_a.missile.position = ufo_a.position;
+                    ufo_b.missile.position = ufo_b.position;
+                    is_ufo_fire = true;
+                    float x = player_ship.position.x - ufo_a.position.x;
+                    float y = player_ship.position.y - ufo_a.position.y;
+                    fire_angle = atan2(y,x);
+                    fire_angle += (3.141592f / 4.0f);
+                }
+                
+                if(is_ufo_fire)
+                {
+                    last_ufo_fire = current_time;
+                    //fire
+                    if(ufo_a.state == ALIVE)
+                    {
+                        ufo_a.missile.position.x += (ufo_a.missile.speed * (cos(fire_angle) + sin(fire_angle)) * GetFrameTime());
+                        ufo_a.missile.position.y += (ufo_a.missile.speed * (sin(fire_angle) - cos(fire_angle)) * GetFrameTime());
+                        if(CheckCollisionCircles(player_ship.position,player_ship.collision_radius,ufo_a.missile.position,ufo_a.missile.collision_radius))
+                        {
+                            currentScreen = ENDING;
+                        }
+                    }
+                    if(ufo_b.state == ALIVE)
+                    {
+                        ufo_b.missile.position.x += (ufo_b.missile.speed * (cos(fire_angle) + sin(fire_angle)) * GetFrameTime());
+                        ufo_b.missile.position.y += (ufo_b.missile.speed * (sin(fire_angle) - cos(fire_angle)) * GetFrameTime());
+                        if(CheckCollisionCircles(player_ship.position,player_ship.collision_radius,ufo_b.missile.position,ufo_b.missile.collision_radius))
+                        {
+                            currentScreen = ENDING;
+                        }
+                    }                 
+                    float x_delta = fabs(ufo_a.missile.position.x - ufo_a.position.x);
+                    float y_delta = fabs(ufo_a.missile.position.y - ufo_a.position.y);
+                    if( x_delta + y_delta  > 1000 )
+                    {
+                        is_ufo_fire = false;
+                    }
+                    
+                }
+        
+                TimeRemaining -= GetFrameTime();
+                sprintf(RemainTimeBuffer,"Remaining : %d",(int)TimeRemaining);
+                sprintf(ScoreBuffer,"Score:%d", score);
+                
+                isPlayerUsingPower = IsKeyDown(KEY_UP);
+            }
             break;
             case ENDING:
             break;
         }
         
-        //update playership positions
-        float radian = (-45.0f + PlayerShip.rotation) * 3.141592f / 180.0f;
-        PlayerShip.position.x += (PlayerShip.power * (cos(radian) + sin(radian)) * GetFrameTime());
-        if(PlayerShip.position.x > SCREEN_WIDTH)
-        {
-            PlayerShip.position.x  = 0.0f;
-        }
-        else if( PlayerShip.position.x < 0.0f)
-        {
-            PlayerShip.position.x = SCREEN_WIDTH;
-        }
-        PlayerShip.position.y += (PlayerShip.power * (sin(radian) - cos (radian)) * GetFrameTime());
-        if(PlayerShip.position.y > SCREEN_HEIGHT)
-        {
-            PlayerShip.position.y = 0.0f;
-        }
-        else if(PlayerShip.position.y < 0.0f)
-        {
-            PlayerShip.position.y = SCREEN_HEIGHT;
-        }
         
-        //do some random direction
-        if(ufo_a.position.x > 1550.0f)
-        {
-            ufo_rot = ((float)rand()/RAND_MAX * (float)120.0f + 220.0f);
-        }
-        else if(ufo_a.position.x <= 50.0f)
-        {
-            ufo_rot = ((float)rand()/RAND_MAX * (float)120.0f + 30.0f);
-        }
-        if(ufo_a.position.y <= 50.0f)
-        {
-            ufo_rot = ((float)rand()/RAND_MAX * (float)120.0f + 120.0f);
-        }
-        else if(ufo_a.position.y >= 1150.0f)
-        {
-            ufo_rot = ((float)rand()/RAND_MAX * (float)45.0f - 60.0f);
-        }
-        
-        float ufo_radian = (-45.0f + ufo_rot) * (3.141592f / 180.0f);
-        ufo_a.position.x += (ufo_a.power  * (cos(ufo_radian) + sin(ufo_radian)) * GetFrameTime());
-        ufo_a.position.y += (ufo_a.power * (sin(ufo_radian) - cos(ufo_radian)) * GetFrameTime());
-        ufo_b.position.x += (ufo_b.power  * (cos(ufo_radian) + sin(ufo_radian)) * GetFrameTime());
-        ufo_b.position.y += (ufo_b.power * (sin(ufo_radian) - cos(ufo_radian)) * GetFrameTime());
-        
-        //update player missile position
-        if(PlayerShip.is_fire)
-        {
-            float missile_radian = (-45.0f + PlayerShip.missile.rotation) * 3.141592f / 180.0f;
-            PlayerShip.missile.position.x += (PlayerShip.missile.speed * (cos(missile_radian) + sin(missile_radian)) * GetFrameTime());
-            PlayerShip.missile.position.y += (PlayerShip.missile.speed * (sin(missile_radian) - cos (missile_radian)) * GetFrameTime());
-            
-            float x_delta = fabs(PlayerShip.missile.position.x  - PlayerShip.position.x);
-            float y_delta = fabs(PlayerShip.missile.position.y - PlayerShip.position.y);
-            if( x_delta + y_delta  > 300 )
-            {
-                PlayerShip.is_fire = false;
-            }
-        }
-
-        TimeRemaining -= GetFrameTime();
-        sprintf(RemainTimeBuffer,"Remaining : %d",(int)TimeRemaining);
-        sprintf(ScoreBuffer,"Score:%.3f", PlayerShip.position.x);
-        
-        bool isPlayerUsingPower = IsKeyDown(KEY_UP);
         // Draw
         //----------------------------------------------------------------------------------
         BeginDrawing();
 
             ClearBackground(BLACK);
             
-            //draw player spacecraft
-            if(PlayerShip.state == ALIVE)
+            switch(currentScreen)
             {
-                DrawSpacecraft(&PlayerShip.texture[0],PlayerShip.position, PlayerShip.rotation);
-                if(isPlayerUsingPower)
+                case TITLE:
+                DrawText(GAME_TITLE_MESSAGE,SCREEN_WIDTH / 2 - 300,SCREEN_HEIGHT / 2,50,YELLOW);
+                break;
+                case GAMEPLAY:
                 {
-                    DrawSpacecraft(&PlayerShip.texture[1],PlayerShip.position,PlayerShip.rotation);
+                    //draw player spacecraft
+                    if(player_ship.state == ALIVE)
+                    {
+                        DrawSpacecraft(&player_ship.texture[0],player_ship.position, player_ship.rotation);
+                        if(isPlayerUsingPower)
+                        {
+                            DrawSpacecraft(&player_ship.texture[1],player_ship.position,player_ship.rotation);
+                        }
+                        if(player_ship.is_fire)
+                        {
+                            DrawMissile(&player_ship.missile.texture,player_ship.missile.position,player_ship.missile.rotation);
+                        }
+                    }
+                    
+                    //draw ufos!
+                    if(ufo_a.state == ALIVE)
+                    {
+                        DrawSpacecraft(&ufo_a.texture[0],ufo_a.position,0.0f);    
+                    }
+                    if(ufo_b.state == ALIVE)
+                    {
+                        DrawSpacecraft(&ufo_b.texture[0],ufo_b.position, 0.0f);
+                    }
+                    
+                    if(is_ufo_fire)
+                    {
+                        if(ufo_a.state ==ALIVE)
+                        {
+                            DrawMissile(&ufo_a.missile.texture,ufo_a.missile.position,ufo_a.missile.rotation);
+                        }
+                        if(ufo_b.state == ALIVE)
+                        {
+                            DrawMissile(&ufo_b.missile.texture,ufo_b.missile.position,ufo_b.missile.rotation);
+                        }
+                        
+                    }
+                   
+                    //draw UIs
+                    DrawText(RemainTimeBuffer,25,25,30,GREEN);
+                    DrawText(ScoreBuffer,25,75,30,GREEN);
+                    DrawText(LoggingBuffer,25,350,25,RED);
                 }
-                if(PlayerShip.is_fire)
+                break;
+                case ENDING:
+                if(is_survive)
                 {
-                    DrawMissile(&PlayerShip.missile.texture,PlayerShip.missile.position,PlayerShip.missile.rotation);
+                    DrawText(GAME_SUCCESS_MESSAGE,SCREEN_WIDTH / 2 - 100,SCREEN_HEIGHT / 2,50,YELLOW);
                 }
+                else
+                {
+                    DrawText(GAME_FAIL_MESSAGE,SCREEN_WIDTH / 2 - 100,SCREEN_HEIGHT / 2,50,YELLOW);
+                }
+                
+                break;
             }
             
-            //draw ufos!
-            if(ufo_a.state == ALIVE)
-            {
-               DrawSpacecraft(&ufo_a.texture[0],ufo_a.position,0.0f);    
-            }
-            if(ufo_b.state == ALIVE)
-            {
-               DrawSpacecraft(&ufo_b.texture[0],ufo_b.position, 0.0f);
-            }
-            
-            
-            
-            //draw UIs
-            DrawText(RemainTimeBuffer,25,25,30,GREEN);
-            DrawText(ScoreBuffer,25,75,30,GREEN);
         EndDrawing();
         //----------------------------------------------------------------------------------
     }
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadTexture(PlayerShip.texture[0]);
-    UnloadTexture(PlayerShip.texture[1]);
-    UnloadTexture(PlayerShip.missile.texture);
+    UnloadTexture(player_ship.texture[0]);
+    UnloadTexture(player_ship.texture[1]);
+    UnloadTexture(player_ship.missile.texture);
     UnloadTexture(ufo_a.texture[0]);
     UnloadTexture(ufo_b.texture[0]);
+    UnloadTexture(ufo_a.missile.texture);
+    UnloadTexture(ufo_b.missile.texture);
     CloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;
 }
 
-float IncreaseRotation(float rotation)
-{
-    return rotation + 1.0f;
-}
-
-
-float DecreaseRotation(float rotation)
-{
-    return rotation - 1.0f;
-}
-
 void DrawSpacecraft(Texture2D* const texture,Vector2 position, float rotation)
 {
+    //DrawCircle(position.x,position.y,25.0f,RED);
     DrawTexturePro(
         *texture,
         (Rectangle){0,0,texture->width,texture->height},
@@ -284,11 +388,12 @@ void DrawSpacecraft(Texture2D* const texture,Vector2 position, float rotation)
 
 void DrawMissile(Texture2D* const texture,Vector2 position, float rotation)
 {
+    //DrawCircle(position.x,position.y,15.0f,RED);
     DrawTexturePro(
         *texture,
         (Rectangle){0,0,texture->width,texture->height},
-        (Rectangle){position.x,position.y,texture->width,texture->height},
-        (Vector2){texture->width / 2,texture->height / 2},
+        (Rectangle){position.x,position.y,texture->width * 2,texture->height * 2},
+        (Vector2){texture->width,texture->height},
         rotation,
         WHITE);
 }
@@ -297,11 +402,11 @@ void HandleInputs(struct SpaceCraft * const spacecraft)
 {
     if(IsKeyDown(KEY_RIGHT))
     {
-        spacecraft->rotation = IncreaseRotation(spacecraft->rotation);
+        spacecraft->rotation += 1.0f;
     }
     if(IsKeyDown(KEY_LEFT))
     {
-        spacecraft->rotation = DecreaseRotation(spacecraft->rotation);
+        spacecraft->rotation -= 1.0f;
     }
     if(IsKeyDown(KEY_UP))
     {
@@ -323,13 +428,8 @@ void HandleInputs(struct SpaceCraft * const spacecraft)
             return;
         }
         spacecraft->is_fire = true;
-        fire(&spacecraft->missile,spacecraft->position, spacecraft->rotation);
+        spacecraft->missile.position = spacecraft->position;
+        spacecraft->missile.rotation = spacecraft->rotation;
+        
     }
-}
-
-
-void fire(struct Missile* const missile, Vector2 position, float rotation)
-{
-    missile->position = position;
-    missile->rotation = rotation;
 }
