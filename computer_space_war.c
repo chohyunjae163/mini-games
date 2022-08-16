@@ -128,7 +128,9 @@ int main(void)
     
     SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
-
+    Image img_logo = LoadImage("resources/raylib_logo.png");
+    Texture2D texture_logo = LoadTextureFromImage(img_logo);
+    UnloadImage(img_logo);
     // Main game loop
     while (!WindowShouldClose())    // Detect window close button or ESC key
     {
@@ -296,6 +298,12 @@ int main(void)
             {
                 case TITLE:
                 DrawText(GAME_TITLE_MESSAGE,SCREEN_WIDTH / 2 - 300,SCREEN_HEIGHT / 2,50,YELLOW);
+                DrawTexturePro(texture_logo,
+                (Rectangle){0,0, texture_logo.width,texture_logo.height},
+                (Rectangle){1200,1000,texture_logo.width / 2,texture_logo.height / 2},
+                (Vector2){texture_logo.width/4, texture_logo.height/4 },
+                0.0f,
+                WHITE);
                 break;
                 case GAMEPLAY:
                 {
@@ -368,6 +376,7 @@ int main(void)
     UnloadTexture(ufo_b.texture[0]);
     UnloadTexture(ufo_a.missile.texture);
     UnloadTexture(ufo_b.missile.texture);
+    UnloadTexture(texture_logo);
     CloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
