@@ -40,7 +40,6 @@ struct SpaceCraft
 };
 
 
-void HandleInputs(struct SpaceCraft* const);
 void DrawSpacecraft(Texture2D* const,Vector2,float);
 void DrawMissile(Texture2D* const, Vector2 , float);
 
@@ -49,12 +48,25 @@ int main(void)
     
     // Initialization
     //--------------------------------------------------------------------------------------
-    //debugging
-    //char LoggingBuffer[50];
     //setup window
+    
     const int SCREEN_WIDTH  =       1600;
     const int SCREEN_HEIGHT =       1200;
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "a shooting game created with Raylib");
+    InitAudioDevice();      // Initialize audio device
+    Sound fxFire = LoadSound("resources/sound_fire.wav");         // Load WAV audio file
+    SetSoundVolume(fxFire, 1.0f);
+    
+    //add a raylib logo 
+    Image img_logo = LoadImage("resources/raylib_logo.png");
+    Texture2D texture_logo = LoadTextureFromImage(img_logo);
+    UnloadImage(img_logo);
+    
+    //add a background image
+    Image img_galaxy = LoadImage("resources/galaxy.png");
+    Texture2D texture_galaxy = LoadTextureFromImage(img_galaxy);
+    UnloadImage(img_galaxy);
+    
     
     //setup the game environment
     time_t t;
@@ -63,15 +75,15 @@ int main(void)
     const float UFO_FIRE_INTERVAL  = 0.25;
     float last_ufo_fire = 0.0f;
     bool is_ufo_fire = false;
-    bool is_survive = false;
-    float fire_angle = 0;
+    float ufo_fire_angle = 0;
+    bool is_player_survive = false;
     float TimeRemaining = GAME_TIME;
     enum GameScreen currentScreen = LOGO;
-    char RemainTimeBuffer[15];
-    
+    char RemainTimeBuffer[15] = { 0 };
+
+    //setup the player spacecraft
     Image spacecraft_image = LoadImage("resources/spacecraft_a.png");
     Image spacecraft_fire = LoadImage("resources/spacecraft_fire.png");
-    //setup player spacecraft
     struct SpaceCraft player_ship = {
          .position.x = 250,
          .position.y = 250,
@@ -82,9 +94,11 @@ int main(void)
          .collision_radius = 25.0f,
          .texture[0] = LoadTextureFromImage(spacecraft_image),
          .texture[1] = LoadTextureFromImage(spacecraft_fire),
-    };
+    };   
+    UnloadImage(spacecraft_image);
+    UnloadImage(spacecraft_fire);
     
-    //setup ufo spacecraft
+    //setup a ufo spacecraft
     float ufo_rot = ((float)rand()/RAND_MAX * (float)120.0f + 220.0f);
     Image ufo_image = LoadImage("resources/spacecraft_b.png");
     struct SpaceCraft ufo_a = { 
@@ -98,6 +112,7 @@ int main(void)
     .power = 105.0f
     };
     
+    //setup a second ufo spacecraft
     struct SpaceCraft ufo_b = { 
     .position.x = SCREEN_WIDTH - 250, 
     .position.y = 500, 
@@ -127,15 +142,44 @@ int main(void)
     
     SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
-    Image img_logo = LoadImage("resources/raylib_logo.png");
-    Texture2D texture_logo = LoadTextureFromImage(img_logo);
-    UnloadImage(img_logo);
+
     // Main game loop
     while (!WindowShouldClose())    // Detect window close button or ESC key
     {
         // Update
         //----------------------------------------------------------------------------------
-        HandleInputs(&player_ship);
+        if(IsKeyDown(KEY_RIGHT))
+        {
+            player_ship.rotation += 1.0f;
+        }
+        if(IsKeyDown(KEY_LEFT))
+        {
+            player_ship.rotation -= 1.0f;
+        }
+        if(IsKeyDown(KEY_UP))
+        {
+            player_ship.fuel -= 1;
+            if(player_ship.fuel < 1)
+            {
+                player_ship.fuel = 0;
+            }
+            else
+            {
+                player_ship.power += 1;
+            } 
+        }
+        
+        if(IsKeyPressed(KEY_SPACE))
+        {
+            if(player_ship.is_fire)
+            {
+                return;
+            }
+            PlaySoundMulti(fxFire);
+            player_ship.is_fire = true;
+            player_ship.missile.position = player_ship.position;
+            player_ship.missile.rotation = player_ship.rotation;
+        }
         bool isPlayerUsingPower = false;
         //scene update
         switch(currentScreen)
@@ -144,8 +188,8 @@ int main(void)
         {
             last_ufo_fire = 0.0f;
             is_ufo_fire = false;
-            is_survive = false;
-            fire_angle = 0;
+            is_player_survive = false;
+            ufo_fire_angle = 0;
             TimeRemaining = GAME_TIME;
             player_ship.position.x = 250;
             player_ship.position.y = 250;
@@ -170,7 +214,7 @@ int main(void)
         break;
         case GAMEPLAY:
         {
-            //update player_ship positions
+            //update player_ship positions with its rotation and power
             float radian = (-45.0f + player_ship.rotation) * 3.141592f / 180.0f;
             player_ship.position.x += (player_ship.power * (cos(radian) + sin(radian)) * GetFrameTime());
             if(player_ship.position.x > SCREEN_WIDTH)
@@ -191,20 +235,20 @@ int main(void)
                 player_ship.position.y = SCREEN_HEIGHT;
             }
             
-            //do some random direction
-            if(ufo_a.position.x > 1550.0f)
+            //change a  direction for ufos when touching the edges of the window
+            if(ufo_a.position.x > 1550.0f || ufo_b.position.x > 1550.0f)
             {
                 ufo_rot = ((float)rand()/RAND_MAX * (float)120.0f + 220.0f);
             }
-            else if(ufo_a.position.x <= 50.0f)
+            else if(ufo_a.position.x <= 50.0f || ufo_b.position.x <= 50.0f)
             {
                 ufo_rot = ((float)rand()/RAND_MAX * (float)120.0f + 30.0f);
             }
-            if(ufo_a.position.y <= 50.0f)
+            if(ufo_a.position.y <= 50.0f || ufo_b.position.y <=50.0f)
             {
                 ufo_rot = ((float)rand()/RAND_MAX * (float)120.0f + 120.0f);
             }
-            else if(ufo_b.position.y >= 1150.0f)
+            else if(ufo_b.position.y >= 1150.0f || ufo_a.position.y >=1150.0f)
             {
                 ufo_rot = ((float)rand()/RAND_MAX * (float)45.0f - 60.0f);
             }
@@ -243,7 +287,7 @@ int main(void)
                 if(ufo_a.state == DEAD && ufo_b.state == DEAD)
                 {
                     currentScreen = ENDING;
-                    is_survive = true;
+                    is_player_survive = true;
                 }
                 if( x_delta + y_delta  > 300 )
                 {
@@ -260,20 +304,32 @@ int main(void)
                 ufo_a.missile.position = ufo_a.position;
                 ufo_b.missile.position = ufo_b.position;
                 is_ufo_fire = true;
-                float x = player_ship.position.x - ufo_a.position.x;
-                float y = player_ship.position.y - ufo_a.position.y;
-                fire_angle = atan2(y,x);
-                fire_angle += (3.141592f / 4.0f);
+                float x  = 0.0f;
+                float y = 0.0f;
+                if(ufo_a.state == ALIVE)
+                {
+                    x = player_ship.position.x - ufo_a.position.x;
+                    y = player_ship.position.y - ufo_a.position.y;
+                }
+                else
+                {
+                    x = player_ship.position.x - ufo_b.position.x;
+                    y = player_ship.position.y - ufo_b.position.y;
+                }
+                
+                ufo_fire_angle = atan2(y,x);
+                ufo_fire_angle += (3.141592f / 4.0f);
             }
             
+            //update ufo missile position
             if(is_ufo_fire)
             {
                 last_ufo_fire = current_time;
                 //fire
                 if(ufo_a.state == ALIVE)
                 {
-                    ufo_a.missile.position.x += (ufo_a.missile.speed * (cos(fire_angle) + sin(fire_angle)) * GetFrameTime());
-                    ufo_a.missile.position.y += (ufo_a.missile.speed * (sin(fire_angle) - cos(fire_angle)) * GetFrameTime());
+                    ufo_a.missile.position.x += (ufo_a.missile.speed * (cos(ufo_fire_angle) + sin(ufo_fire_angle)) * GetFrameTime());
+                    ufo_a.missile.position.y += (ufo_a.missile.speed * (sin(ufo_fire_angle) - cos(ufo_fire_angle)) * GetFrameTime());
                     if(CheckCollisionCircles(player_ship.position,player_ship.collision_radius,ufo_a.missile.position,ufo_a.missile.collision_radius))
                     {
                         currentScreen = ENDING;
@@ -281,15 +337,15 @@ int main(void)
                 }
                 if(ufo_b.state == ALIVE)
                 {
-                    ufo_b.missile.position.x += (ufo_b.missile.speed * (cos(fire_angle) + sin(fire_angle)) * GetFrameTime());
-                    ufo_b.missile.position.y += (ufo_b.missile.speed * (sin(fire_angle) - cos(fire_angle)) * GetFrameTime());
+                    ufo_b.missile.position.x += (ufo_b.missile.speed * (cos(ufo_fire_angle) + sin(ufo_fire_angle)) * GetFrameTime());
+                    ufo_b.missile.position.y += (ufo_b.missile.speed * (sin(ufo_fire_angle) - cos(ufo_fire_angle)) * GetFrameTime());
                     if(CheckCollisionCircles(player_ship.position,player_ship.collision_radius,ufo_b.missile.position,ufo_b.missile.collision_radius))
                     {
                         currentScreen = ENDING;
                     }
                 }                 
-                float x_delta = fabs(ufo_a.missile.position.x - ufo_a.position.x);
-                float y_delta = fabs(ufo_a.missile.position.y - ufo_a.position.y);
+                float x_delta = ufo_a.state == ALIVE ? fabs(ufo_a.missile.position.x - ufo_a.position.x) : fabs(ufo_b.missile.position.x - ufo_b.position.x);
+                float y_delta = ufo_a.state == ALIVE ? fabs(ufo_a.missile.position.y - ufo_a.position.y) : fabs(ufo_b.missile.position.y - ufo_b.position.y);
                 if( x_delta + y_delta  > 1000 )
                 {
                     is_ufo_fire = false;
@@ -330,9 +386,16 @@ int main(void)
             (Vector2){texture_logo.width/4, texture_logo.height/4 },
             0.0f,
             WHITE);
+            
             break;
             case GAMEPLAY:
             {
+                DrawTexturePro(texture_galaxy,
+                (Rectangle){0,0, texture_galaxy.width,texture_galaxy.height},
+                (Rectangle){0,0, SCREEN_WIDTH, SCREEN_HEIGHT},
+                (Vector2){0, 0 },
+                0.0f,
+                WHITE);                
                 //draw player spacecraft
                 if(player_ship.state == ALIVE)
                 {
@@ -370,12 +433,12 @@ int main(void)
                     
                 }
                
-                //draw UIs
                 DrawText(RemainTimeBuffer,25,25,30,GREEN);
+               
             }
             break;
             case ENDING:
-            if(is_survive)
+            if(is_player_survive)
             {
                 DrawText(GAME_SUCCESS_MESSAGE,SCREEN_WIDTH / 2 - 200,SCREEN_HEIGHT / 2,50,YELLOW);
             }
@@ -393,6 +456,10 @@ int main(void)
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
+    StopSoundMulti();       // We must stop the buffer pool before unloading
+    UnloadSound(fxFire);     // Unload sound data
+    CloseAudioDevice();     // Close audio device
+    
     UnloadTexture(player_ship.texture[0]);
     UnloadTexture(player_ship.texture[1]);
     UnloadTexture(player_ship.missile.texture);
@@ -401,6 +468,7 @@ int main(void)
     UnloadTexture(ufo_a.missile.texture);
     UnloadTexture(ufo_b.missile.texture);
     UnloadTexture(texture_logo);
+    UnloadTexture(texture_galaxy);
     CloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
@@ -429,40 +497,4 @@ void DrawMissile(Texture2D* const texture,Vector2 position, float rotation)
         (Vector2){texture->width,texture->height},
         rotation,
         WHITE);
-}
-
-void HandleInputs(struct SpaceCraft * const spacecraft)
-{
-    if(IsKeyDown(KEY_RIGHT))
-    {
-        spacecraft->rotation += 1.0f;
-    }
-    if(IsKeyDown(KEY_LEFT))
-    {
-        spacecraft->rotation -= 1.0f;
-    }
-    if(IsKeyDown(KEY_UP))
-    {
-       spacecraft->fuel -= 1;
-       if(spacecraft->fuel < 1)
-       {
-           spacecraft->fuel = 0;
-       }
-       else
-       {
-           spacecraft->power += 1;
-       } 
-    }
-    
-    if(IsKeyPressed(KEY_SPACE))
-    {
-        if(spacecraft->is_fire)
-        {
-            return;
-        }
-        spacecraft->is_fire = true;
-        spacecraft->missile.position = spacecraft->position;
-        spacecraft->missile.rotation = spacecraft->rotation;
-        
-    }
 }
