@@ -3,5 +3,5 @@ mini-games toy projects
 two-week projects
 
 LIST
--- computer_space_war
--- breakout_clone
+- computer_space_war
+- breakout_clone
