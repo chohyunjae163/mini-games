@@ -1,6 +1,7 @@
 #include "raylib.h" 
 #include <math.h>
 
+
 #define ROW 8
 #define COLUMN 14
 #define BRICKS_NUM ROW * COLUMN // eight rows and fourteen columns
@@ -9,6 +10,10 @@
 #define LEFT_WALL 50
 #define RIGHT_WALL 1550
 #define WALL_PADDING 10
+#define PI 3.141592
+#define DEG_TO_RAD(deg) deg * (PI / 180.0)
+#define EPSILON 0.001f
+#define MIN_MAX(x,min,max) (x > max ? max : x < min ? min : x)
 
 
 int main(void)
@@ -31,9 +36,9 @@ int main(void)
     const int   yPadding = 200;
     const int   rightWallBound = screenWidth - WALL_THICKNESS - WALL_PADDING;
     const int   leftWallBound = WALL_PADDING + WALL_THICKNESS;   
-    int         playerWidth = 100;
+    int         playerWidth = 200;
     int         playerHeight = 20;
-    bool        IsBallDetached = false;
+    bool        IsGameStart = false;
     bool        destroyed[BRICKS_NUM] = {0};
     Vector2     brickPositions[BRICKS_NUM] = {0};
     for(int i = 0; i < BRICKS_NUM;++i)
@@ -42,7 +47,7 @@ int main(void)
         brickPositions[i].y = yPadding + (brickHeight + brickPadding) * (i / COLUMN);
     }
 
-    Vector2 playerPosition = { .x = screenWidth / 2, .y = screenHeight - 100 };
+    Vector2 playerPosition = { .x = screenWidth / 2 - 100, .y = screenHeight - 100 };
     Vector2 ballStartPos = { .x = playerPosition.x + playerWidth / 2, .y = playerPosition.y - playerHeight / 2  };
     Vector2 ballPos = ballStartPos;
     Vector2 ballDir = {.x = 0.0f, .y = -1.0f };
@@ -51,7 +56,6 @@ int main(void)
     
     
     //--------------------------------------------------------------------------------------
-
     // Main game loop
     while (!WindowShouldClose())    // Detect window close button or ESC key
     {
@@ -60,8 +64,15 @@ int main(void)
         // TODO: Update variables / Implement example logic at this point
         //----------------------------------------------------------------------------------
         // process inputs
-        if(IsBallDetached)
+        //the ball is attached to the player when the game starts.
+        //detach the ball in order to start the game.
+        if (!IsGameStart == IsKeyDown(KEY_SPACE))
         {
+            IsGameStart = true;
+        }
+       
+        if(IsGameStart)
+        { 
             if (IsKeyDown(KEY_RIGHT))
             {
                 playerPosition.x += playerSpeed;
@@ -79,53 +90,67 @@ int main(void)
             {
                 playerPosition.x = rightWallBound - playerWidth;
             }
-        }
-        //the ball is attached to the player when the game starts.
-        //detach the ball in order to start the game.
-        if (IsKeyDown(KEY_SPACE))
-        {
-            IsBallDetached = true;
-        }
-        
-        if(IsBallDetached)
-        {
+            
             ballPos.x += (ballDir.x * ballSpeed);
             ballPos.y += (ballDir.y * ballSpeed);
-        }
-        
-        //brick and ball collision check.destory when collided.
-        for( int i = 0 ;i < BRICKS_NUM; ++i )
-        {
-            if(destroyed[i])
-            {
-                continue;
-            }
-            Rectangle brick = { 
-                .x = brickPositions[i].x,
-                .y = brickPositions[i].y,
-                .width = brickWidth,
-                .height = brickHeight,
+            
+            //check collisions
+            Rectangle player = {
+                .x = playerPosition.x,
+                .y = playerPosition.y,
+                .width = playerWidth,
+                .height = playerHeight,
             };
-            
-            if(CheckCollisionPointRec(ballPos, brick))
+            //when the ball hits the player's bar, its direction changes depending on its hit point.
+            if(CheckCollisionPointRec(ballPos, player))
             {
-                destroyed[i] = true;
-                //assume the normal vector of all the bricks is (0,1)
-                Vector2 brickNormal = { .x = 0.0f, .y = 1.0f};
-                // reflection vector : R = P +  2n(-P·n)
-                //maybe i dont need all this math....i can just flip x or y value of a vector..
-                float dot = -ballDir.x * brickNormal.x + -ballDir.y * brickNormal.y;
-                Vector2 proj = {.x = brickNormal.x * dot, .y = brickNormal.y * dot};
-                Vector2 reflect = {.x = ballDir.x +  2 * proj.x , .y = ballDir.y + 2 * proj.y };
-                float length = sqrt(reflect.x * reflect.x + reflect.y * reflect.y);
-                if(length > 0.0f)
+                float xDiff = (ballPos.x - playerWidth / 2) - playerPosition.x;
+                xDiff /= 2.0f; 
+                float angle = 90.0f - MIN_MAX(xDiff,-80.0f,80.0f); //the ball does not go perpendicular to the player's bar
+                if(fabs(angle) > EPSILON )
                 {
-                    reflect.x /= length;
-                    reflect.y /= length;
+                    ballDir.x = 1.0f / tan(DEG_TO_RAD(angle));
+                    ballDir.x /= sqrt(ballDir.x * ballDir.x + ballDir.y * ballDir.y);
+                    ballDir.y /= sqrt(ballDir.x * ballDir.x + ballDir.y * ballDir.y);
                 }
-                ballDir = reflect;
+                
+                ballDir.y *= -1.0f;
+
             }
-            
+            //brick and ball collision check.destory when collided.
+            for( int i = 0 ;i < BRICKS_NUM; ++i )
+            {
+                if(destroyed[i])
+                {
+                    continue;
+                }
+                Rectangle brick = { 
+                    .x = brickPositions[i].x,
+                    .y = brickPositions[i].y,
+                    .width = brickWidth,
+                    .height = brickHeight,
+                };
+                
+                if(CheckCollisionPointRec(ballPos, brick))
+                {
+                    destroyed[i] = true;
+                    //assume the normal vector of all the bricks is (0,1)
+                    //Vector2 brickNormal = { .x = 0.0f, .y = 1.0f};
+                    // R = P +  2n(-P·n)
+                    //get a reflect vector. a collided ball 
+                    //dot product
+                    //float dot = -ballDir.x * brickNormal.x + -ballDir.y * brickNormal.y;
+                    //Vector2 proj = {.x = brickNormal.x * dot, .y = brickNormal.y * dot};
+                    //Vector2 reflect = {.x = ballDir.x +  2 * proj.x , .y = ballDir.y + 2 * proj.y };
+                    //float length = sqrt(reflect.x * reflect.x + reflect.y * reflect.y);
+                    //if(length > 0.0f)
+                    //{
+                    //    reflect.x /= length;
+                    //    reflect.y /= length;
+                    //}
+                    ballDir.y*= -1.0f;
+                }
+            }
         }
         // Draw
         //----------------------------------------------------------------------------------
@@ -173,7 +198,7 @@ int main(void)
             DrawRectangle(playerPosition.x,playerPosition.y,playerWidth,playerHeight,BEIGE);
             //draw a ball
             DrawCircle(ballPos.x,ballPos.y,10,PURPLE);
-            
+ 
         EndDrawing();
         //----------------------------------------------------------------------------------
     }
