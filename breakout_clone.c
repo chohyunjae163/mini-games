@@ -1,7 +1,5 @@
 #include "raylib.h" 
 #include <math.h>
-
-
 #define ROW 8
 #define COLUMN 14
 #define BRICKS_NUM ROW * COLUMN // eight rows and fourteen columns
@@ -27,7 +25,7 @@ int main(void)
         
     // TODO: Load resources / Initialize variables at this point
     InitAudioDevice();      // Initialize audio device
-    SetTargetFPS(60);
+    SetTargetFPS(30);
     
     const int   brickWidth = 90;
     const int   brickHeight = 20;
@@ -47,12 +45,13 @@ int main(void)
         brickPositions[i].y = yPadding + (brickHeight + brickPadding) * (i / COLUMN);
     }
 
-    Vector2 playerPosition = { .x = screenWidth / 2 - 100, .y = screenHeight - 100 };
+    Vector2 playerPosition = { .x = screenWidth / 2 - 100.0f, .y = screenHeight - 100.0f };
     Vector2 ballStartPos = { .x = playerPosition.x + playerWidth / 2, .y = playerPosition.y - playerHeight / 2  };
     Vector2 ballPos = ballStartPos;
     Vector2 ballDir = {.x = 0.0f, .y = -1.0f };
-    float   ballSpeed = 5.0f;
-    const float playerSpeed = 5.0f;
+    float   ballSpeed = 15.0f;
+    float   ballRadius = 5.0f;
+    const float playerSpeed = 10.0f;
     
     
     //--------------------------------------------------------------------------------------
@@ -101,7 +100,8 @@ int main(void)
                 .width = playerWidth,
                 .height = playerHeight,
             };
-            //when the ball hits the player's bar, its direction changes depending on its hit point.
+            //when the ball hits the player's floor, the ball's direction depends on 
+            //a distance between the ball and the center of the player's bar
             if(CheckCollisionPointRec(ballPos, player))
             {
                 float xDiff = (ballPos.x - playerWidth / 2) - playerPosition.x;
@@ -116,6 +116,16 @@ int main(void)
                 
                 ballDir.y *= -1.0f;
 
+            }
+            //check side wall collisions
+            if(ballPos.x - ballRadius <= leftWallBound || ballPos.x + ballRadius >= rightWallBound)
+            {
+                ballDir.x *= -1.0f;
+            }
+            
+            if(ballPos.y - ballRadius <= WALL_PADDING + WALL_THICKNESS)
+            {
+                ballDir.y *= -1.0f;
             }
             //brick and ball collision check.destory when collided.
             for( int i = 0 ;i < BRICKS_NUM; ++i )
@@ -197,7 +207,7 @@ int main(void)
             //draw a player rectangle
             DrawRectangle(playerPosition.x,playerPosition.y,playerWidth,playerHeight,BEIGE);
             //draw a ball
-            DrawCircle(ballPos.x,ballPos.y,10,PURPLE);
+            DrawCircle(ballPos.x,ballPos.y,ballRadius * 2,PURPLE);
  
         EndDrawing();
         //----------------------------------------------------------------------------------
