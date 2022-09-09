@@ -52,7 +52,8 @@ int main(void)
     float   ballSpeed = 15.0f;
     float   ballRadius = 5.0f;
     const float playerSpeed = 10.0f;
-    
+    unsigned int score = 0;
+    char    textScore[20] = {0};
     
     //--------------------------------------------------------------------------------------
     // Main game loop
@@ -65,7 +66,7 @@ int main(void)
         // process inputs
         //the ball is attached to the player when the game starts.
         //detach the ball in order to start the game.
-        if (!IsGameStart == IsKeyDown(KEY_SPACE))
+        if (!IsGameStart == IsKeyDown(KEY_SPACE))   
         {
             IsGameStart = true;
         }
@@ -117,15 +118,21 @@ int main(void)
                 ballDir.y *= -1.0f;
 
             }
-            //check side wall collisions
+            //check the side wall collisions
             if(ballPos.x - ballRadius <= leftWallBound || ballPos.x + ballRadius >= rightWallBound)
             {
                 ballDir.x *= -1.0f;
             }
-            
+            //check the top wall collision
             if(ballPos.y - ballRadius <= WALL_PADDING + WALL_THICKNESS)
             {
                 ballDir.y *= -1.0f;
+                //if hit the top wall, reduces the width of the player's bar
+                if(playerWidth > 80)
+                {
+                    playerWidth -= 20;
+                }
+                
             }
             //brick and ball collision check.destory when collided.
             for( int i = 0 ;i < BRICKS_NUM; ++i )
@@ -144,6 +151,7 @@ int main(void)
                 if(CheckCollisionPointRec(ballPos, brick))
                 {
                     destroyed[i] = true;
+                    score += (7 - (i / (COLUMN * 2) * 2));
                     //assume the normal vector of all the bricks is (0,1)
                     //Vector2 brickNormal = { .x = 0.0f, .y = 1.0f};
                     // R = P +  2n(-P·n)
@@ -162,6 +170,7 @@ int main(void)
                 }
             }
         }
+        sprintf(textScore,"Score: %d", score);
         // Draw
         //----------------------------------------------------------------------------------
         BeginDrawing();
@@ -208,7 +217,7 @@ int main(void)
             DrawRectangle(playerPosition.x,playerPosition.y,playerWidth,playerHeight,BEIGE);
             //draw a ball
             DrawCircle(ballPos.x,ballPos.y,ballRadius * 2,PURPLE);
- 
+            DrawText(textScore,80,80,30,BLACK);
         EndDrawing();
         //----------------------------------------------------------------------------------
     }
