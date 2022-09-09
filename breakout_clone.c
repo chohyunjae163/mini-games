@@ -8,7 +8,6 @@
 #define LEFT_WALL 50
 #define RIGHT_WALL 1550
 #define WALL_PADDING 10
-#define PI 3.141592
 #define DEG_TO_RAD(deg) deg * (PI / 180.0)
 #define EPSILON 0.001f
 #define MIN_MAX(x,min,max) (x > max ? max : x < min ? min : x)
@@ -36,7 +35,7 @@ int main(void)
     const int   leftWallBound = WALL_PADDING + WALL_THICKNESS;   
     int         playerWidth = 200;
     int         playerHeight = 20;
-    bool        IsGameStart = false;
+    bool        GameStart = false;
     bool        destroyed[BRICKS_NUM] = {0};
     Vector2     brickPositions[BRICKS_NUM] = {0};
     for(int i = 0; i < BRICKS_NUM;++i)
@@ -54,6 +53,7 @@ int main(void)
     const float playerSpeed = 10.0f;
     unsigned int score = 0;
     char    textScore[20] = {0};
+    char    textMessage[25] = "Press SpaceBar to Start";
     
     //--------------------------------------------------------------------------------------
     // Main game loop
@@ -66,12 +66,12 @@ int main(void)
         // process inputs
         //the ball is attached to the player when the game starts.
         //detach the ball in order to start the game.
-        if (!IsGameStart == IsKeyDown(KEY_SPACE))   
+        if (!GameStart == IsKeyDown(KEY_SPACE))   
         {
-            IsGameStart = true;
+            GameStart = true;
         }
        
-        if(IsGameStart)
+        if(GameStart)
         { 
             if (IsKeyDown(KEY_RIGHT))
             {
@@ -134,6 +134,7 @@ int main(void)
                 }
                 
             }
+             bool GameEnd = true;
             //brick and ball collision check.destory when collided.
             for( int i = 0 ;i < BRICKS_NUM; ++i )
             {
@@ -141,6 +142,8 @@ int main(void)
                 {
                     continue;
                 }
+                GameEnd = false;//if there is a brick left for collision check, the game is not finished.
+                
                 Rectangle brick = { 
                     .x = brickPositions[i].x,
                     .y = brickPositions[i].y,
@@ -168,6 +171,16 @@ int main(void)
                     //}
                     ballDir.y*= -1.0f;
                 }
+            }
+            GameEnd = ballPos.y > playerPosition.y + WALL_THICKNESS;
+            if(GameEnd)
+            {
+                memset(textMessage,25,sizeof(char) * 25);
+                for(int i =0 ; i < 25; ++i)
+                {
+                    strcpy(textMessage,"GAME OVER");
+                }
+                GameStart = false;
             }
         }
         sprintf(textScore,"Score: %d", score);
@@ -218,6 +231,11 @@ int main(void)
             //draw a ball
             DrawCircle(ballPos.x,ballPos.y,ballRadius * 2,PURPLE);
             DrawText(textScore,80,80,30,BLACK);
+            
+            if(!GameStart)
+            {
+                DrawText(textMessage,screenWidth / 2 - 200,screenHeight/2,40,BLACK);
+            }
         EndDrawing();
         //----------------------------------------------------------------------------------
     }
