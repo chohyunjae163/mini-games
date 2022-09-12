@@ -48,12 +48,12 @@ int main(void)
     Vector2 ballStartPos = { .x = playerPosition.x + playerWidth / 2, .y = playerPosition.y - playerHeight / 2  };
     Vector2 ballPos = ballStartPos;
     Vector2 ballDir = {.x = 0.0f, .y = -1.0f };
-    float   ballSpeed = 15.0f;
+    float   ballSpeed = 20.0f;
     float   ballRadius = 5.0f;
-    const float playerSpeed = 10.0f;
+    const float playerSpeed = 15.0f;
     unsigned int score = 0;
     char    textScore[20] = {0};
-    char    textMessage[25] = "Press SpaceBar to Start";
+    char    textMessage[50] = "Press SpaceBar to Start";
     
     //--------------------------------------------------------------------------------------
     // Main game loop
@@ -66,9 +66,21 @@ int main(void)
         // process inputs
         //the ball is attached to the player when the game starts.
         //detach the ball in order to start the game.
-        if (!GameStart == IsKeyDown(KEY_SPACE))   
+        if (!GameStart && IsKeyDown(KEY_SPACE))   
         {
             GameStart = true;
+            playerPosition.x = screenWidth / 2 - 100.0f;
+            playerPosition.y = screenHeight - 100.0f;
+            ballStartPos.x = playerPosition.x + playerWidth / 2;
+            ballStartPos.y = playerPosition.y - playerHeight / 2;
+            ballPos = ballStartPos;
+            ballDir.x = 0.0f;
+            ballDir.y = -1.0f;
+            score = 0;
+            for(int i =0; i < BRICKS_NUM;++i)
+            {
+                 destroyed[i] = false;
+            }           
         }
        
         if(GameStart)
@@ -135,7 +147,7 @@ int main(void)
                 
             }
              bool GameEnd = true;
-            //brick and ball collision check.destory when collided.
+            //brick and ball collision check.destroy when collided.
             for( int i = 0 ;i < BRICKS_NUM; ++i )
             {
                 if(destroyed[i])
@@ -175,11 +187,8 @@ int main(void)
             GameEnd = ballPos.y > playerPosition.y + WALL_THICKNESS;
             if(GameEnd)
             {
-                memset(textMessage,25,sizeof(char) * 25);
-                for(int i =0 ; i < 25; ++i)
-                {
-                    strcpy(textMessage,"GAME OVER");
-                }
+                memset(textMessage,50,sizeof(char) * 50);
+                strcpy(textMessage,"\t\tGAME OVER.\n Press Space To Restart.");
                 GameStart = false;
             }
         }
