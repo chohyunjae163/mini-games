@@ -1,5 +1,7 @@
 #include "raylib.h" 
 #include <math.h>
+#include <string.h>
+#include <stdio.h>
 #define ROW 8
 #define COLUMN 14
 #define BRICKS_NUM ROW * COLUMN // eight rows and fourteen columns
@@ -55,6 +57,23 @@ int main(void)
     char    textScore[20] = {0};
     char    textMessage[50] = "Press SpaceBar to Start";
     
+    Sound fxDo = LoadSound("resources/syllable_do.wav");
+    SetSoundVolume(fxDo,0.6f);
+    Sound fxRe = LoadSound("resources/syllable_re.wav");
+    SetSoundVolume(fxRe,0.6f);
+    Sound fxMi = LoadSound("resources/syllable_mi.wav");
+    SetSoundVolume(fxMi,0.6f);
+    Sound fxFa = LoadSound("resources/syllable_fa.wav");
+    SetSoundVolume(fxFa,0.6f);
+    
+    Sound fxBricks[4] = { fxDo, fxRe, fxMi, fxFa };
+    
+    Sound fxBar = LoadSound("resources/hit_bar.wav");
+    SetSoundVolume(fxBar,1.0f);
+    
+    Sound fxWall = LoadSound("resources/hit_wall.wav");
+    SetSoundVolume(fxWall,1.0f);
+    
     //--------------------------------------------------------------------------------------
     // Main game loop
     while (!WindowShouldClose())    // Detect window close button or ESC key
@@ -69,6 +88,7 @@ int main(void)
         if (!GameStart && IsKeyDown(KEY_SPACE))   
         {
             GameStart = true;
+            playerWidth = 200;
             playerPosition.x = screenWidth / 2 - 100.0f;
             playerPosition.y = screenHeight - 100.0f;
             ballStartPos.x = playerPosition.x + playerWidth / 2;
@@ -128,12 +148,14 @@ int main(void)
                 }
                 
                 ballDir.y *= -1.0f;
-
+                
+                PlaySoundMulti(fxBar);
             }
             //check the side wall collisions
             if(ballPos.x - ballRadius <= leftWallBound || ballPos.x + ballRadius >= rightWallBound)
             {
                 ballDir.x *= -1.0f;
+                PlaySoundMulti(fxWall);
             }
             //check the top wall collision
             if(ballPos.y - ballRadius <= WALL_PADDING + WALL_THICKNESS)
@@ -144,6 +166,7 @@ int main(void)
                 {
                     playerWidth -= 20;
                 }
+                PlaySoundMulti(fxWall);
                 
             }
              bool GameEnd = true;
@@ -182,6 +205,7 @@ int main(void)
                     //    reflect.y /= length;
                     //}
                     ballDir.y*= -1.0f;
+                    PlaySoundMulti(fxBricks[i / (COLUMN * 2)]);
                 }
             }
             GameEnd = ballPos.y > playerPosition.y + WALL_THICKNESS;
@@ -254,6 +278,12 @@ int main(void)
 
     // TODO: Unload all loaded resources at this point
     StopSoundMulti();       // We must stop the buffer pool before unloading
+    UnloadSound(fxDo);
+    UnloadSound(fxRe);
+    UnloadSound(fxMi);
+    UnloadSound(fxFa);
+    UnloadSound(fxBar);
+    UnloadSound(fxWall);
     CloseAudioDevice();     // Close audio device
     CloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
