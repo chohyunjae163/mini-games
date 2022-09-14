@@ -50,9 +50,9 @@ int main(void)
     Vector2 ballStartPos = { .x = playerPosition.x + playerWidth / 2, .y = playerPosition.y - playerHeight / 2  };
     Vector2 ballPos = ballStartPos;
     Vector2 ballDir = {.x = 0.0f, .y = -1.0f };
-    float   ballSpeed = 20.0f;
+    float   ballSpeed = 400.0f;
     float   ballRadius = 5.0f;
-    const float playerSpeed = 15.0f;
+    const float playerSpeed = 300.0f;
     unsigned int score = 0;
     char    textScore[20] = {0};
     char    textMessage[50] = "Press SpaceBar to Start";
@@ -105,13 +105,14 @@ int main(void)
        
         if(GameStart)
         { 
+            const float deltaTime = GetFrameTime();
             if (IsKeyDown(KEY_RIGHT))
             {
-                playerPosition.x += playerSpeed;
+                playerPosition.x += playerSpeed * deltaTime;
             }
             if (IsKeyDown(KEY_LEFT))
             {
-                playerPosition.x -= playerSpeed;     
+                playerPosition.x -= playerSpeed * deltaTime;     
             }
 
             if(playerPosition.x < leftWallBound)
@@ -123,8 +124,8 @@ int main(void)
                 playerPosition.x = rightWallBound - playerWidth;
             }
             
-            ballPos.x += (ballDir.x * ballSpeed);
-            ballPos.y += (ballDir.y * ballSpeed);
+            ballPos.x += (ballDir.x * ballSpeed * deltaTime);
+            ballPos.y += (ballDir.y * ballSpeed * deltaTime);
             
             //check collisions
             Rectangle player = {
@@ -165,6 +166,7 @@ int main(void)
                 if(playerWidth > 80)
                 {
                     playerWidth -= 20;
+                    ballSpeed += 25.0f;
                 }
                 PlaySoundMulti(fxWall);
                 
